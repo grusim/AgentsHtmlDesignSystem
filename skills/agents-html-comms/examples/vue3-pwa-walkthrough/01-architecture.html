@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture — Vue 3 PWA → .NET Core API (OpenAPI / Swagger codegen)</title>
+
+<!-- theme.js — Agents HTML Design System, inlined verbatim so this file is self-contained.
+     Provides window.__theme {get,set,cycle,effective,subscribe} and auto-wires
+     [data-theme-toggle] / [data-theme-set] elements. Runs before <style> below
+     so localStorage preference is applied before first paint. -->
+<script>
+(function () {
+  var KEY = 'ds.theme';
+  var html = document.documentElement;
+  function getStored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function setStored(v) { try { if (v == null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, v); } catch (e) {} }
+  function apply(mode) {
+    if (mode === 'light' || mode === 'dark') html.setAttribute('data-theme', mode);
+    else html.removeAttribute('data-theme');
+    html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: mode || 'auto', effective: effectiveTheme(mode) } }));
+  }
+  function effectiveTheme(mode) {
+    if (mode === 'light' || mode === 'dark') return mode;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var stored = getStored();
+  if (stored === 'light' || stored === 'dark') html.setAttribute('data-theme', stored);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange = function () {
+      if (!getStored()) html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: 'auto', effective: mq.matches ? 'dark' : 'light' } }));
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+  window.__theme = {
+    get: function () { return getStored() || 'auto'; },
+    set: function (mode) {
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') return;
+      setStored(mode === 'auto' ? null : mode);
+      apply(mode === 'auto' ? null : mode);
+    },
+    cycle: function () {
+      var cur = window.__theme.get();
+      var next = cur === 'auto' ? 'light' : cur === 'light' ? 'dark' : 'auto';
+      window.__theme.set(next);
+      return next;
+    },
+    effective: function () { return effectiveTheme(getStored()); },
+    subscribe: function (fn) {
+      var handler = function (e) { fn(e.detail); };
+      html.addEventListener('themechange', handler);
+      return function () { html.removeEventListener('themechange', handler); };
+    },
+  };
+  function syncToggles() {
+    var mode = window.__theme.get();
+    var nodes = document.querySelectorAll('[data-theme-toggle]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].setAttribute('data-theme-current', mode);
+      var label = nodes[i].querySelector('[data-theme-label]');
+      if (label) label.textContent = mode;
+    }
+  }
+  window.__theme.subscribe(syncToggles);
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-theme-toggle]');
+    if (!btn) return;
+    var setNode = e.target.closest('[data-theme-set]');
+    if (setNode) window.__theme.set(setNode.getAttribute('data-theme-set'));
+    else window.__theme.cycle();
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncToggles);
+  else syncToggles();
+})();
+</script>
+
+<style>
+  /* ── Agents HTML Design System — foundations (inlined, self-contained) ── */
+  :root {
+    color-scheme: light;
+    --ivory:    #FAF9F5;
+    --paper:    #FFFFFF;
+    --slate:    #141413;
+    --clay:     #D97757;
+    --clay-d:   #B85C3E;
+    --oat:      #E3DACC;
+    --olive:    #788C5D;
+    --g100: #F0EEE6;
+    --g200: #E6E3DA;
+    --g300: #D1CFC5;
+    --g500: #87867F;
+    --g700: #3D3D3A;
+    --clay-tint:  rgba(217, 119, 87, 0.14);
+    --olive-tint: rgba(120, 140, 93, 0.16);
+    --shadow-rgb: 20, 20, 19;
+    --serif: ui-serif, Georgia, "Times New Roman", Times, serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+    --r-sm: 8px; --r-md: 12px; --r-lg: 14px;
+    --bd: 1.5px solid var(--g300);
+    --shadow-md: 0 4px 14px rgba(var(--shadow-rgb), 0.08);
+  }
+
+  /* Dark palette — applied when OS prefers dark AND user hasn't forced light. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+      --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+      --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+      --g500: #8F8B82; --g700: #C5BFB3;
+      --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+      --shadow-rgb: 0,0,0;
+    }
+  }
+  /* Explicit user override — wins over the media query because it comes later. */
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+    --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+    --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+    --g500: #8F8B82; --g700: #C5BFB3;
+    --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+    --shadow-rgb: 0,0,0;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--ivory);
+    color: var(--slate);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 56px 32px 96px; position: relative; }
+
+  /* ── Theme picker (segmented control) ───────────────────────────── */
+  .theme-picker {
+    position: absolute;
+    top: 28px;
+    right: 32px;
+    display: inline-flex;
+    align-items: stretch;
+    background: var(--paper);
+    border: var(--bd);
+    border-radius: 999px;
+    padding: 3px;
+    box-shadow: var(--shadow-md);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    user-select: none;
+  }
+  .theme-picker [data-theme-set] {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: var(--g500);
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    line-height: 1;
+  }
+  .theme-picker [data-theme-set]:hover { color: var(--slate); }
+  .theme-picker[data-theme-current="light"] [data-theme-set="light"],
+  .theme-picker[data-theme-current="auto"] [data-theme-set="auto"],
+  .theme-picker[data-theme-current="dark"] [data-theme-set="dark"] {
+    background: var(--clay-tint);
+    color: var(--clay-d);
+  }
+  @media (max-width: 720px) {
+    .theme-picker { position: static; margin: 0 0 24px; }
+  }
+
+
+  /* ── Masthead ──────────────────────────────────────────────────────── */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--g500);
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .eyebrow.with-dash::before {
+    content: "";
+    width: 24px;
+    height: 1.5px;
+    background: var(--clay);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(34px, 4.6vw, 52px);
+    line-height: 1.08;
+    letter-spacing: -0.018em;
+    margin: 14px 0 12px;
+    max-width: 22ch;
+  }
+  h1 em { font-style: italic; color: var(--clay); }
+
+  h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 22px;
+    line-height: 1.25;
+    margin: 0 0 8px;
+    letter-spacing: -0.008em;
+  }
+
+  .lede { font-family: var(--sans); font-size: 17px; line-height: 1.55; color: var(--g700); max-width: 60ch; }
+  .small { font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--g700); }
+
+  .stack-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 18px;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--g700);
+    background: var(--g100);
+    border: 1px solid var(--g200);
+    border-radius: 999px;
+    padding: 4px 10px;
+  }
+
+  /* ── Card containers ──────────────────────────────────────────────── */
+  .card {
+    background: var(--paper);
+    border: var(--bd);
+    border-radius: var(--r-lg);
+    padding: 36px 40px;
+    box-shadow: var(--shadow-md);
+    margin-top: 40px;
+  }
+  .card.tight { padding: 28px 32px; }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+
+  /* ── Diagram ──────────────────────────────────────────────────────── */
+  .diagram-wrap { width: 100%; overflow-x: auto; }
+  svg.architecture { width: 100%; height: auto; display: block; min-width: 760px; }
+
+  /* ── Legend ───────────────────────────────────────────────────────── */
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 32px;
+    border-top: var(--bd);
+    padding-top: 24px;
+  }
+  .legend-item { display: flex; gap: 12px; align-items: flex-start; }
+  .legend-swatch {
+    flex: 0 0 36px;
+    height: 18px;
+    margin-top: 4px;
+    border-radius: 2px;
+  }
+  .legend-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--g500); margin-bottom: 2px; }
+  .legend-body { font-family: var(--sans); font-size: 14px; color: var(--g700); }
+
+  /* ── Numbered callouts ────────────────────────────────────────────── */
+  .callouts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: cb;
+  }
+  .callouts li {
+    counter-increment: cb;
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 16px;
+    padding: 16px 0;
+    border-top: 1px solid var(--g100);
+  }
+  .callouts li:first-child { border-top: 0; padding-top: 0; }
+  .callouts li::before {
+    content: counter(cb);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--clay);
+    background: var(--clay-tint);
+    border: 1.5px solid var(--clay);
+    border-radius: 999px;
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    letter-spacing: 0;
+    margin-top: 2px;
+  }
+  .callouts h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 18px;
+    margin: 0 0 4px;
+    letter-spacing: -0.006em;
+  }
+  .callouts p { margin: 0; font-family: var(--sans); font-size: 15px; line-height: 1.55; color: var(--g700); }
+  .callouts code { font-family: var(--mono); font-size: 13px; background: var(--g100); padding: 1px 5px; border-radius: 4px; }
+
+  /* ── Footer ───────────────────────────────────────────────────────── */
+  footer {
+    margin-top: 56px;
+    border-top: var(--bd);
+    padding-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  footer .small { color: var(--g500); }
+  footer a { color: var(--clay); text-decoration-color: var(--oat); text-underline-offset: 3px; }
+
+  /* SVG label styling ------------------------------------------------- */
+  svg.architecture .group-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; fill: var(--g500); }
+  svg.architecture .node-eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; fill: var(--g500); }
+  svg.architecture .node-title { font-family: var(--mono); font-size: 14px; fill: var(--slate); }
+  svg.architecture .node-sub { font-family: var(--mono); font-size: 11px; fill: var(--g500); }
+  svg.architecture .edge-label { font-family: var(--serif); font-style: italic; font-size: 13px; fill: var(--g700); }
+  svg.architecture .edge-label.primary { fill: var(--clay-d); }
+
+  /* Book navigation */
+  .booknav {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 16px; padding: 16px 0; border-bottom: var(--bd); margin-bottom: 32px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .booknav.bottom { border-bottom: 0; border-top: var(--bd); margin: 56px 0 0; padding-bottom: 0; }
+  .booknav a { color: var(--g500); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .booknav a:hover { color: var(--clay-d); }
+  .booknav .toc-link { color: var(--clay-d); }
+  .booknav .nav-group { display: inline-flex; gap: 28px; }
+  .booknav .nav-empty { color: var(--g300); cursor: default; pointer-events: none; display: inline-flex; align-items: center; gap: 8px; padding: 4px 0; }
+</style>
+</head>
+
+<body>
+<main class="page">
+
+  <div class="theme-picker" role="group" aria-label="Theme" data-theme-toggle data-theme-current="auto">
+    <button type="button" data-theme-set="light" aria-label="Light theme">Light</button>
+    <button type="button" data-theme-set="auto"  aria-label="Auto theme (follow OS)">Auto</button>
+    <button type="button" data-theme-set="dark"  aria-label="Dark theme">Dark</button>
+  </div>
+
+  <nav class="booknav" aria-label="Page navigation (top)">
+    <a class="toc-link" href="index.html">↑ contents</a>
+    <span class="nav-group">
+      <span class="nav-empty">← start of walkthrough</span>
+      <a href="02-forms-validation.html" rel="next">02 · forms &amp; client validation →</a>
+    </span>
+  </nav>
+
+  <header>
+    <span class="eyebrow with-dash">01 / 03 — architecture</span>
+    <h1>How a Vue&nbsp;3 PWA talks to a <em>.NET&nbsp;Core</em> API</h1>
+    <p class="lede">Runtime traffic flows through a Service Worker that caches responses so the app keeps working offline. At build time, the backend's OpenAPI document is turned into typed TypeScript DTOs that the SPA imports.</p>
+    <div class="stack-row" aria-label="Stack">
+      <span class="chip">Vue 3</span>
+      <span class="chip">Vite</span>
+      <span class="chip">Service Worker</span>
+      <span class="chip">Workbox</span>
+      <span class="chip">.NET Core</span>
+      <span class="chip">ASP.NET Minimal API</span>
+      <span class="chip">Swashbuckle / NSwag</span>
+      <span class="chip">openapi-ts</span>
+    </div>
+  </header>
+
+  <!-- ── DIAGRAM CARD ──────────────────────────────────────────────── -->
+  <section class="card" aria-labelledby="diagram-title">
+    <div class="card-head">
+      <h2 id="diagram-title">System map</h2>
+      <span class="eyebrow">Runtime + build-time</span>
+    </div>
+
+    <div class="diagram-wrap">
+    <svg class="architecture" viewBox="0 0 1000 760" role="img" aria-label="Vue 3 PWA to .NET Core API architecture">
+      <defs>
+        <!-- Arrowheads -->
+        <marker id="arr-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10" fill="none" stroke="var(--g500)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+        <marker id="arr-clay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10" fill="none" stroke="var(--clay-d)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <!-- ── Runtime band label ─────────────────────────────────────── -->
+      <text class="group-label" x="40" y="28">Runtime — in the user's browser, over the network</text>
+
+      <!-- ── Browser container ─────────────────────────────────────── -->
+      <g id="browser">
+        <rect x="40" y="48" width="420" height="260"
+              fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="10"/>
+        <text class="node-eyebrow" x="58" y="72">Browser</text>
+
+        <!-- Vue 3 SPA -->
+        <g>
+          <rect x="60" y="86" width="180" height="80"
+                fill="var(--ivory)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="74" y="108">SPA shell</text>
+          <text class="node-title" x="74" y="130">Vue 3 + Vite</text>
+          <text class="node-sub"   x="74" y="150">composition API · Pinia</text>
+        </g>
+
+        <!-- Service Worker -->
+        <g>
+          <rect x="260" y="86" width="180" height="80"
+                fill="var(--clay-tint)" stroke="var(--clay)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="274" y="108" style="fill: var(--clay-d);">PWA layer</text>
+          <text class="node-title" x="274" y="130">Service Worker</text>
+          <text class="node-sub"   x="274" y="150">Workbox · install / activate</text>
+        </g>
+
+        <!-- Cache / IndexedDB -->
+        <g>
+          <rect x="60" y="186" width="380" height="100"
+                fill="var(--oat)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="74" y="208" style="fill: var(--g700);">Offline store</text>
+          <text class="node-title" x="74" y="232">Cache Storage  ·  IndexedDB</text>
+          <text class="node-sub"   x="74" y="252">stale-while-revalidate · queued mutations</text>
+          <text class="node-sub"   x="74" y="270">app shell · API responses · auth tokens</text>
+        </g>
+      </g>
+
+      <!-- ── Network divider ───────────────────────────────────────── -->
+      <line x1="490" y1="48" x2="490" y2="308"
+            stroke="var(--g300)" stroke-width="1.5" stroke-dasharray="4 6"/>
+      <text class="node-eyebrow" x="498" y="178" transform="rotate(-90 498 178)" text-anchor="middle">HTTPS · network boundary</text>
+
+      <!-- ── Backend container ─────────────────────────────────────── -->
+      <g id="backend">
+        <rect x="520" y="48" width="440" height="260"
+              fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="10"/>
+        <text class="node-eyebrow" x="538" y="72">.NET Core backend</text>
+
+        <!-- API host -->
+        <g>
+          <rect x="540" y="86" width="200" height="80"
+                fill="var(--ivory)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="554" y="108">API host</text>
+          <text class="node-title" x="554" y="130">Minimal API</text>
+          <text class="node-sub"   x="554" y="150">Controllers · MediatR · EF Core</text>
+        </g>
+
+        <!-- OpenAPI document generator -->
+        <g>
+          <rect x="760" y="86" width="180" height="80"
+                fill="var(--olive-tint)" stroke="var(--olive)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="774" y="108" style="fill: var(--olive);">Doc generator</text>
+          <text class="node-title" x="774" y="130">Swashbuckle</text>
+          <text class="node-sub"   x="774" y="150">reflection · attributes</text>
+        </g>
+
+        <!-- swagger.json output -->
+        <g>
+          <rect x="540" y="186" width="400" height="100"
+                fill="var(--g100)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="554" y="208" style="fill: var(--g700);">Contract artifact</text>
+          <text class="node-title" x="554" y="232">/swagger/v1/swagger.json</text>
+          <text class="node-sub"   x="554" y="252">OpenAPI 3.0 spec · paths · components.schemas</text>
+          <text class="node-sub"   x="554" y="270">single source of truth for both sides</text>
+        </g>
+      </g>
+
+      <!-- ── Runtime edges ─────────────────────────────────────────── -->
+      <!-- Vue ↔ SW: fetch intercept -->
+      <line x1="240" y1="126" x2="260" y2="126"
+            stroke="var(--clay-d)" stroke-width="2.5"
+            marker-end="url(#arr-clay)"/>
+      <text class="edge-label primary" x="250" y="118" text-anchor="middle">fetch()</text>
+
+      <!-- SW → Cache (write) and back (read) -->
+      <line x1="320" y1="166" x2="320" y2="186"
+            stroke="var(--g500)" stroke-width="2.5"
+            marker-end="url(#arr-g)"/>
+      <line x1="380" y1="186" x2="380" y2="166"
+            stroke="var(--g500)" stroke-width="2.5"
+            stroke-dasharray="4 5"
+            marker-end="url(#arr-g)"/>
+      <text class="edge-label" x="350" y="183" text-anchor="middle">cache · replay</text>
+
+      <!-- SW → API host: network call -->
+      <line x1="440" y1="126" x2="540" y2="126"
+            stroke="var(--clay-d)" stroke-width="2.5"
+            marker-end="url(#arr-clay)"/>
+      <text class="edge-label primary" x="490" y="118" text-anchor="middle">HTTPS · JSON</text>
+
+      <!-- API host → Swashbuckle -->
+      <line x1="740" y1="126" x2="760" y2="126"
+            stroke="var(--g500)" stroke-width="2.5"
+            marker-end="url(#arr-g)"/>
+      <text class="edge-label" x="750" y="118" text-anchor="middle">introspect</text>
+
+      <!-- Swashbuckle → swagger.json -->
+      <line x1="850" y1="166" x2="780" y2="186"
+            stroke="var(--g500)" stroke-width="2.5"
+            marker-end="url(#arr-g)"/>
+      <text class="edge-label" x="840" y="180" text-anchor="end">emits</text>
+
+      <!-- ── Build-time band label ─────────────────────────────────── -->
+      <text class="group-label" x="40" y="358">Build-time — runs on the developer's machine or in CI, before deploy</text>
+
+      <!-- ── Build-time container ──────────────────────────────────── -->
+      <g id="buildtime">
+        <rect x="40" y="378" width="920" height="240"
+              fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5"
+              stroke-dasharray="6 6" rx="10"/>
+        <text class="node-eyebrow" x="58" y="402">DTO codegen pipeline</text>
+
+        <!-- swagger.json (input copy) -->
+        <g>
+          <rect x="80" y="430" width="220" height="100"
+                fill="var(--g100)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="94" y="452" style="fill: var(--g700);">Input</text>
+          <text class="node-title" x="94" y="476">swagger.json</text>
+          <text class="node-sub"   x="94" y="496">fetched at build time</text>
+          <text class="node-sub"   x="94" y="514">from running API or checked-in copy</text>
+        </g>
+
+        <!-- Schema generator -->
+        <g>
+          <rect x="380" y="430" width="240" height="100"
+                fill="var(--clay-tint)" stroke="var(--clay)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="394" y="452" style="fill: var(--clay-d);">Tool</text>
+          <text class="node-title" x="394" y="476">openapi-ts · NSwag</text>
+          <text class="node-sub"   x="394" y="496">parses spec · maps to TS types</text>
+          <text class="node-sub"   x="394" y="514">interfaces · enums · clients</text>
+        </g>
+
+        <!-- TypeScript DTOs -->
+        <g>
+          <rect x="700" y="430" width="240" height="100"
+                fill="var(--olive-tint)" stroke="var(--olive)" stroke-width="1.5" rx="8"/>
+          <text class="node-eyebrow" x="714" y="452" style="fill: var(--olive);">Output</text>
+          <text class="node-title" x="714" y="476">src/api/dto.ts</text>
+          <text class="node-sub"   x="714" y="496">generated · do not edit</text>
+          <text class="node-sub"   x="714" y="514">imported by Pinia stores · forms · SW</text>
+        </g>
+
+        <!-- swagger.json → tool -->
+        <line x1="300" y1="480" x2="380" y2="480"
+              stroke="var(--g500)" stroke-width="2.5"
+              marker-end="url(#arr-g)"/>
+        <text class="edge-label" x="340" y="472" text-anchor="middle">read</text>
+
+        <!-- tool → DTOs -->
+        <line x1="620" y1="480" x2="700" y2="480"
+              stroke="var(--g500)" stroke-width="2.5"
+              marker-end="url(#arr-g)"/>
+        <text class="edge-label" x="660" y="472" text-anchor="middle">write</text>
+      </g>
+
+      <!-- ── Cross-band edges ──────────────────────────────────────── -->
+      <!-- backend swagger.json → build-time swagger.json (dashed clay) -->
+      <path d="M 740,286 C 740,360 190,360 190,430"
+            fill="none" stroke="var(--clay-d)" stroke-width="2.5"
+            stroke-dasharray="6 6"
+            marker-end="url(#arr-clay)"/>
+      <text class="edge-label primary" x="460" y="354" text-anchor="middle">pulled at build</text>
+
+      <!-- DTOs → Vue SPA (dashed clay, loops up-left) -->
+      <path d="M 820,430 C 820,340 150,340 150,166"
+            fill="none" stroke="var(--clay-d)" stroke-width="2.5"
+            stroke-dasharray="6 6"
+            marker-end="url(#arr-clay)"/>
+      <text class="edge-label primary" x="480" y="334" text-anchor="middle">import { Customer, Order } from '@/api/dto'</text>
+
+      <!-- ── Bottom row · captions ─────────────────────────────────── -->
+      <text class="group-label" x="40" y="650">Edge legend — solid lines = runtime traffic · dashed lines = build-time data flow</text>
+    </svg>
+    </div>
+
+    <!-- Legend ------------------------------------------------------- -->
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-swatch" style="background: var(--clay);"></div>
+        <div>
+          <div class="legend-title">Primary path</div>
+          <div class="legend-body">Hot runtime flow: user action → fetch → Service Worker → API.</div>
+        </div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background: var(--g500);"></div>
+        <div>
+          <div class="legend-title">Secondary path</div>
+          <div class="legend-body">Internal hops: cache read / write, doc generation, codegen IO.</div>
+        </div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background: repeating-linear-gradient(90deg, var(--clay) 0 6px, transparent 6px 12px);"></div>
+        <div>
+          <div class="legend-title">Build-time</div>
+          <div class="legend-body">Happens before deploy, not on the wire. swagger.json pulled, DTOs emitted.</div>
+        </div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background: var(--oat);"></div>
+        <div>
+          <div class="legend-title">Persistent store</div>
+          <div class="legend-body">Browser-side storage that survives reloads and powers offline.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CALLOUTS CARD ─────────────────────────────────────────────── -->
+  <section class="card tight" aria-labelledby="callouts-title">
+    <div class="card-head">
+      <h2 id="callouts-title">Reading the map</h2>
+      <span class="eyebrow">Five hops</span>
+    </div>
+
+    <ol class="callouts">
+      <li>
+        <div>
+          <h3>SPA shell never calls the network directly</h3>
+          <p>Every <code>fetch()</code> from Vue goes through the Service Worker. The SPA stays unaware of online / offline state — it just awaits a response.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Service Worker decides cache vs. network</h3>
+          <p>Workbox strategies route each request: <code>stale-while-revalidate</code> for read-mostly endpoints, <code>network-first</code> for writes, queued background sync when offline.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>API host is a thin .NET Core layer</h3>
+          <p>Minimal API or Controllers expose endpoints. Domain logic lives behind MediatR handlers. Persistence via EF Core. No knowledge of the SPA shape.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Swashbuckle emits the contract</h3>
+          <p>At app start, Swashbuckle reflects over the routing table and DTOs, producing <code>/swagger/v1/swagger.json</code> — the single source of truth.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Build-time codegen closes the loop</h3>
+          <p>CI fetches <code>swagger.json</code>, runs <code>openapi-ts</code> (or NSwag), and writes generated TypeScript DTOs into the SPA repo. The Vue side imports them like any other module — never hand-written, never out of sync.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <nav class="booknav bottom" aria-label="Page navigation (bottom)">
+    <a class="toc-link" href="index.html">↑ contents</a>
+    <span class="nav-group">
+      <span class="nav-empty">← start of walkthrough</span>
+      <a href="02-forms-validation.html" rel="next">02 · forms &amp; client validation →</a>
+    </span>
+  </nav>
+
+  <footer>
+    <span class="small">Page 01 of 03 · part of the <code>vue3-pwa-walkthrough</code> example for <code>agents-html-comms</code>.</span>
+  </footer>
+
+</main>
+</body>
+</html>

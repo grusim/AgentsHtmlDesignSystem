@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 — Forms &amp; client validation · Vue 3 PWA walkthrough</title>
+
+<script>
+(function () {
+  var KEY = 'ds.theme';
+  var html = document.documentElement;
+  function getStored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function setStored(v) { try { if (v == null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, v); } catch (e) {} }
+  function apply(mode) {
+    if (mode === 'light' || mode === 'dark') html.setAttribute('data-theme', mode);
+    else html.removeAttribute('data-theme');
+    html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: mode || 'auto', effective: effectiveTheme(mode) } }));
+  }
+  function effectiveTheme(mode) {
+    if (mode === 'light' || mode === 'dark') return mode;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var stored = getStored();
+  if (stored === 'light' || stored === 'dark') html.setAttribute('data-theme', stored);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange = function () {
+      if (!getStored()) html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: 'auto', effective: mq.matches ? 'dark' : 'light' } }));
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+  window.__theme = {
+    get: function () { return getStored() || 'auto'; },
+    set: function (mode) {
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') return;
+      setStored(mode === 'auto' ? null : mode);
+      apply(mode === 'auto' ? null : mode);
+    },
+    cycle: function () { var c = window.__theme.get(); var n = c === 'auto' ? 'light' : c === 'light' ? 'dark' : 'auto'; window.__theme.set(n); return n; },
+    effective: function () { return effectiveTheme(getStored()); },
+    subscribe: function (fn) { var h = function (e) { fn(e.detail); }; html.addEventListener('themechange', h); return function () { html.removeEventListener('themechange', h); }; },
+  };
+  function syncToggles() {
+    var mode = window.__theme.get();
+    var nodes = document.querySelectorAll('[data-theme-toggle]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].setAttribute('data-theme-current', mode);
+      var label = nodes[i].querySelector('[data-theme-label]');
+      if (label) label.textContent = mode;
+    }
+  }
+  window.__theme.subscribe(syncToggles);
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-theme-toggle]');
+    if (!btn) return;
+    var setNode = e.target.closest('[data-theme-set]');
+    if (setNode) window.__theme.set(setNode.getAttribute('data-theme-set'));
+    else window.__theme.cycle();
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncToggles);
+  else syncToggles();
+})();
+</script>
+
+<style>
+  :root {
+    color-scheme: light;
+    --ivory: #FAF9F5; --paper: #FFFFFF; --slate: #141413;
+    --clay: #D97757; --clay-d: #B85C3E; --oat: #E3DACC; --olive: #788C5D;
+    --g100: #F0EEE6; --g200: #E6E3DA; --g300: #D1CFC5;
+    --g500: #87867F; --g700: #3D3D3A;
+    --danger: #B04A4A; --warning: #C78E3F;
+    --clay-tint: rgba(217,119,87,0.14); --olive-tint: rgba(120,140,93,0.16);
+    --danger-tint: rgba(176,74,74,0.14); --warning-tint: rgba(199,142,63,0.16);
+    --shadow-rgb: 20,20,19;
+    --serif: ui-serif, Georgia, "Times New Roman", Times, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    --r-xs: 4px; --r-sm: 8px; --r-md: 12px; --r-lg: 14px;
+    --bd: 1.5px solid var(--g300);
+    --shadow-md: 0 4px 14px rgba(var(--shadow-rgb), 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+      --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+      --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+      --g500: #8F8B82; --g700: #C5BFB3;
+      --danger: #C9685F; --warning: #DBA458;
+      --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+      --danger-tint: rgba(201,104,95,0.18); --warning-tint: rgba(219,164,88,0.18);
+      --shadow-rgb: 0,0,0;
+    }
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+    --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+    --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+    --g500: #8F8B82; --g700: #C5BFB3;
+    --danger: #C9685F; --warning: #DBA458;
+    --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+    --danger-tint: rgba(201,104,95,0.18); --warning-tint: rgba(219,164,88,0.18);
+    --shadow-rgb: 0,0,0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ivory); color: var(--slate); font-family: var(--sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 56px 32px 96px; position: relative; }
+
+  /* Theme picker */
+  .theme-picker { position: absolute; top: 28px; right: 32px; display: inline-flex; background: var(--paper); border: var(--bd); border-radius: 999px; padding: 3px; box-shadow: var(--shadow-md); font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; user-select: none; }
+  .theme-picker [data-theme-set] { appearance: none; background: transparent; border: 0; color: var(--g500); padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; line-height: 1; }
+  .theme-picker [data-theme-set]:hover { color: var(--slate); }
+  .theme-picker[data-theme-current="light"] [data-theme-set="light"],
+  .theme-picker[data-theme-current="auto"] [data-theme-set="auto"],
+  .theme-picker[data-theme-current="dark"] [data-theme-set="dark"] { background: var(--clay-tint); color: var(--clay-d); }
+  @media (max-width: 720px) { .theme-picker { position: static; margin: 0 0 24px; } }
+
+  /* Book navigation */
+  .booknav {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 16px; padding: 16px 0; border-bottom: var(--bd); margin-bottom: 32px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .booknav.bottom { border-bottom: 0; border-top: var(--bd); margin: 56px 0 0; padding-bottom: 0; }
+  .booknav a { color: var(--g500); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .booknav a:hover { color: var(--clay-d); }
+  .booknav .toc-link { color: var(--clay-d); }
+  .booknav .nav-group { display: inline-flex; gap: 28px; }
+  .booknav .nav-empty { color: var(--g300); cursor: default; pointer-events: none; display: inline-flex; align-items: center; gap: 8px; padding: 4px 0; }
+
+  /* Typography */
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--g500); display: inline-flex; align-items: center; gap: 12px; }
+  .eyebrow.with-dash::before { content: ""; width: 24px; height: 1.5px; background: var(--clay); }
+  h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 4.6vw, 52px); line-height: 1.06; letter-spacing: -0.018em; margin: 14px 0 12px; max-width: 22ch; }
+  h1 em { font-style: italic; color: var(--clay); }
+  h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; margin: 0 0 8px; letter-spacing: -0.008em; }
+  h3 { font-family: var(--serif); font-weight: 500; font-size: 18px; margin: 0 0 4px; letter-spacing: -0.006em; }
+  .lede { font-family: var(--sans); font-size: 17px; line-height: 1.55; color: var(--g700); max-width: 60ch; }
+  .small { font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--g700); }
+  p { font-family: var(--sans); font-size: 15px; line-height: 1.6; color: var(--g700); margin: 8px 0; }
+  code.ds-code { font-family: var(--mono); font-size: 13px; background: var(--g100); padding: 1px 5px; border-radius: var(--r-xs); }
+
+  /* Card */
+  .card { background: var(--paper); border: var(--bd); border-radius: var(--r-lg); padding: 32px 36px; box-shadow: var(--shadow-md); margin-top: 40px; }
+  .card.tight { padding: 26px 30px; }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+
+  /* Code block — Tokyo Night Storm, canonical pattern from agents-html-design
+     `colors_and_type.css` `.ds-code-block`. Palette is theme-independent. */
+  pre.ds-code-block {
+    --tns-bg:      #24283b;
+    --tns-fg:      #c0caf5;
+    --tns-comment: #7e9b4f;
+    --tns-red:     #f7768e;
+    --tns-orange:  #ff9e64;
+    --tns-yellow:  #e0af68;
+    --tns-green:   #9ece6a;
+    --tns-cyan:    #7dcfff;
+    --tns-blue:    #7aa2f7;
+    --tns-purple:  #bb9af7;
+
+    margin: 16px 0 0;
+    padding: 18px 20px;
+    background: var(--tns-bg);
+    color: var(--tns-fg);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    border-radius: var(--r-sm);
+    overflow-x: auto;
+  }
+  .ds-code-block .c { color: var(--tns-comment); font-style: italic; }
+  .ds-code-block .k { color: var(--tns-purple); }
+  .ds-code-block .n { color: var(--tns-orange); }
+  .ds-code-block .s { color: var(--tns-green); }
+  .ds-code-block .f { color: var(--tns-blue); }
+  .ds-code-block .o { color: var(--tns-cyan); }
+  .ds-code-block .p { color: var(--tns-red); }
+  .ds-code-block .y { color: var(--tns-yellow); }
+
+  /* Form mock */
+  .form-states {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;
+    margin-top: 20px;
+  }
+  .field {
+    border: var(--bd); border-radius: var(--r-md);
+    background: var(--ivory); padding: 16px;
+  }
+  .field-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--g500); margin-bottom: 8px; display: block; }
+  .field-input {
+    font-family: var(--mono); font-size: 14px; color: var(--slate);
+    background: var(--paper); border: 1.5px solid var(--g300);
+    border-radius: var(--r-sm); padding: 10px 12px;
+    display: block; width: 100%;
+  }
+  .field.is-valid .field-input { border-color: var(--olive); }
+  .field.is-invalid .field-input { border-color: var(--danger); }
+  .field.is-pending .field-input { border-color: var(--warning); border-style: dashed; }
+  .field-msg { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; margin-top: 8px; color: var(--g500); }
+  .field.is-valid .field-msg { color: var(--olive); }
+  .field.is-invalid .field-msg { color: var(--danger); }
+  .field.is-pending .field-msg { color: var(--warning); }
+  .field-state-tag {
+    display: inline-block; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.10em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; margin-bottom: 10px;
+    background: var(--g100); color: var(--g500); border: 1px solid var(--g200);
+  }
+  .field.is-valid .field-state-tag { background: var(--olive-tint); color: var(--olive); border-color: var(--olive); }
+  .field.is-invalid .field-state-tag { background: var(--danger-tint); color: var(--danger); border-color: var(--danger); }
+  .field.is-pending .field-state-tag { background: var(--warning-tint); color: var(--warning); border-color: var(--warning); }
+
+  /* State diagram SVG */
+  .diagram-wrap { width: 100%; overflow-x: auto; margin-top: 16px; }
+  svg.state-flow { width: 100%; height: auto; display: block; min-width: 640px; }
+  svg.state-flow .node-label { font-family: var(--mono); font-size: 13px; fill: var(--slate); }
+  svg.state-flow .node-sub { font-family: var(--mono); font-size: 11px; fill: var(--g500); }
+  svg.state-flow .edge-label { font-family: var(--serif); font-style: italic; font-size: 13px; fill: var(--g700); }
+
+  /* Rule taxonomy */
+  .rule-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px; margin-top: 16px;
+  }
+  .rule-item { border: var(--bd); border-radius: var(--r-md); background: var(--ivory); padding: 18px; }
+  .rule-item .field-label { margin-bottom: 4px; }
+  .rule-item .rule-title { font-family: var(--serif); font-weight: 500; font-size: 17px; margin-bottom: 4px; }
+  .rule-item .rule-body { font-family: var(--sans); font-size: 14px; color: var(--g700); line-height: 1.5; }
+
+  footer { margin-top: 56px; padding-top: 20px; }
+  footer a { color: var(--clay); text-decoration-color: var(--oat); text-underline-offset: 3px; }
+  footer .small { color: var(--g500); }
+</style>
+</head>
+
+<body>
+<main class="page">
+
+  <div class="theme-picker" role="group" aria-label="Theme" data-theme-toggle data-theme-current="auto">
+    <button type="button" data-theme-set="light">Light</button>
+    <button type="button" data-theme-set="auto">Auto</button>
+    <button type="button" data-theme-set="dark">Dark</button>
+  </div>
+
+  <!-- Book nav (top) -->
+  <nav class="booknav" aria-label="Page navigation (top)">
+    <a class="toc-link" href="index.html" aria-label="Back to table of contents">↑ contents</a>
+    <span class="nav-group">
+      <a href="01-architecture.html" rel="prev">← 01 · architecture</a>
+      <a href="03-api-validation.html" rel="next">03 · api validation →</a>
+    </span>
+  </nav>
+
+  <header>
+    <span class="eyebrow with-dash">02 / 03 — forms &amp; client validation</span>
+    <h1>Catching mistakes <em>before</em> the network hop</h1>
+    <p class="lede">Client-side validation is a UX optimisation, not a security boundary. Its job is to make the form feel responsive — surface obvious issues instantly, never wait on the network for things the browser already knows.</p>
+  </header>
+
+  <!-- Why client validation -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Why client validation at all</h2>
+      <span class="eyebrow">UX</span>
+    </div>
+    <div class="rule-grid">
+      <div class="rule-item">
+        <div class="rule-title">Instant feedback</div>
+        <div class="rule-body">A missing required field shouldn't need a 400ms round-trip to surface. The user typed it; the browser saw it; respond immediately.</div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-title">Saved round-trips</div>
+        <div class="rule-body">Cheap rules (length, format, regex) reject input before <code class="ds-code">fetch()</code> fires. The Service Worker stays idle; the backend stays calm.</div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-title">Accessibility</div>
+        <div class="rule-body">Inline error messages bound via <code class="ds-code">aria-describedby</code> are read by assistive tech as the user moves through fields.</div>
+      </div>
+      <div class="rule-item">
+        <div class="rule-title">Offline-friendly</div>
+        <div class="rule-body">Sync rules still work when the PWA is offline. Async rules (server-side uniqueness checks) queue or degrade gracefully.</div>
+      </div>
+    </div>
+    <p style="margin-top: 18px;"><em>This is not a substitute for backend validation.</em> The browser is hostile territory — anyone can disable scripts, edit the DOM, or replay requests. Server validation is the real boundary; see <a href="03-api-validation.html">page 03</a>.</p>
+  </section>
+
+  <!-- Architecture -->
+  <section class="card">
+    <div class="card-head">
+      <h2>State flow — schema to UI</h2>
+      <span class="eyebrow">Architecture</span>
+    </div>
+    <p>One schema, one validator, one form state object. Fields read from state; errors flow back from the validator. The component layer is dumb — it renders whatever state the form composable tells it.</p>
+
+    <div class="diagram-wrap">
+    <svg class="state-flow" viewBox="0 0 880 320" role="img" aria-label="Form state flow">
+      <defs>
+        <marker id="arr-g2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10" fill="none" stroke="var(--g500)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+        <marker id="arr-clay2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10" fill="none" stroke="var(--clay-d)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <!-- Schema -->
+      <g>
+        <rect x="40" y="100" width="160" height="100" fill="var(--olive-tint)" stroke="var(--olive)" stroke-width="1.5" rx="8"/>
+        <text class="node-sub" x="56" y="124">SOURCE OF TRUTH</text>
+        <text class="node-label" x="56" y="150">Zod schema</text>
+        <text class="node-sub" x="56" y="172">derived from generated DTOs</text>
+      </g>
+
+      <!-- Validator -->
+      <g>
+        <rect x="260" y="100" width="180" height="100" fill="var(--clay-tint)" stroke="var(--clay)" stroke-width="1.5" rx="8"/>
+        <text class="node-sub" x="276" y="124" style="fill: var(--clay-d);">VALIDATOR</text>
+        <text class="node-label" x="276" y="150">vee-validate</text>
+        <text class="node-sub" x="276" y="172">useForm({ validationSchema })</text>
+      </g>
+
+      <!-- Form state -->
+      <g>
+        <rect x="500" y="100" width="160" height="100" fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+        <text class="node-sub" x="516" y="124">REACTIVE STATE</text>
+        <text class="node-label" x="516" y="150">{ values,</text>
+        <text class="node-label" x="516" y="170">  errors, meta }</text>
+      </g>
+
+      <!-- Component -->
+      <g>
+        <rect x="720" y="100" width="140" height="100" fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+        <text class="node-sub" x="736" y="124">RENDER</text>
+        <text class="node-label" x="736" y="150">&lt;Field /&gt;</text>
+        <text class="node-sub" x="736" y="172">v-model · :error</text>
+      </g>
+
+      <!-- Edges -->
+      <line x1="200" y1="150" x2="260" y2="150" stroke="var(--g500)" stroke-width="2.5" marker-end="url(#arr-g2)"/>
+      <text class="edge-label" x="230" y="142" text-anchor="middle">parses</text>
+
+      <line x1="440" y1="150" x2="500" y2="150" stroke="var(--clay-d)" stroke-width="2.5" marker-end="url(#arr-clay2)"/>
+      <text class="edge-label" x="470" y="142" text-anchor="middle">emits</text>
+
+      <line x1="660" y1="150" x2="720" y2="150" stroke="var(--g500)" stroke-width="2.5" marker-end="url(#arr-g2)"/>
+      <text class="edge-label" x="690" y="142" text-anchor="middle">binds</text>
+
+      <!-- Back loop: user input -->
+      <path d="M 790,200 C 790,260 350,260 350,200" fill="none" stroke="var(--clay-d)" stroke-width="2.5" stroke-dasharray="6 6" marker-end="url(#arr-clay2)"/>
+      <text class="edge-label" x="570" y="254" text-anchor="middle" style="fill: var(--clay-d);">user input · v-model write</text>
+
+      <text class="node-sub" x="440" y="36">One direction for validation results · one direction for user input.</text>
+    </svg>
+    </div>
+  </section>
+
+  <!-- Rule taxonomy -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Rule taxonomy</h2>
+      <span class="eyebrow">What goes where</span>
+    </div>
+    <p>Pick the cheapest rule that catches the mistake. Push expensive checks (anything async, anything that depends on backend state) into a separate <code class="ds-code">debounced</code> bucket.</p>
+
+    <div class="rule-grid">
+      <div class="rule-item">
+        <span class="field-label">Sync · cheap</span>
+        <div class="rule-title">required · length · regex</div>
+        <div class="rule-body">Run on every keystroke. Throw the error into <code class="ds-code">errors[fieldName]</code> immediately.</div>
+      </div>
+      <div class="rule-item">
+        <span class="field-label">Sync · structural</span>
+        <div class="rule-title">cross-field rules</div>
+        <div class="rule-body">Password must equal confirmation. Start date must be before end date. Resolve in schema, not in component logic.</div>
+      </div>
+      <div class="rule-item">
+        <span class="field-label">Async · debounced</span>
+        <div class="rule-title">uniqueness · existence</div>
+        <div class="rule-body">"Is this email already registered?" Debounce 300ms after typing stops, hit <code class="ds-code">GET /api/users?email=</code>, mark field <code class="ds-code">pending</code> while awaiting.</div>
+      </div>
+      <div class="rule-item">
+        <span class="field-label">Server-only</span>
+        <div class="rule-title">business rules</div>
+        <div class="rule-body">"Account has insufficient balance." Don't even try to mirror these client-side. Submit, accept the 400, surface the error. See <a href="03-api-validation.html">page 03</a>.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Code example -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Worked component</h2>
+      <span class="eyebrow">Vue 3 + vee-validate + Zod</span>
+    </div>
+    <p>Login form using the schema-driven path. Generated DTO (from <code class="ds-code">swagger.json</code>) supplies the field shape; Zod adds runtime rules; vee-validate exposes reactive state to the template.</p>
+
+<pre class="ds-code-block"><span class="c">// composables/useLoginForm.ts</span>
+<span class="k">import</span> { useForm } <span class="k">from</span> <span class="s">'vee-validate'</span>;
+<span class="k">import</span> { toTypedSchema } <span class="k">from</span> <span class="s">'@vee-validate/zod'</span>;
+<span class="k">import</span> { z } <span class="k">from</span> <span class="s">'zod'</span>;
+<span class="k">import type</span> { LoginRequest } <span class="k">from</span> <span class="s">'@/api/dto'</span>;  <span class="c">// generated</span>
+
+<span class="k">const</span> schema = z.object({
+  email:    z.string().email(<span class="s">'enter a valid email'</span>),
+  password: z.string().min(8, <span class="s">'at least 8 characters'</span>),
+}) satisfies z.ZodType&lt;LoginRequest&gt;;
+
+<span class="k">export function</span> <span class="f">useLoginForm</span>() {
+  <span class="k">return</span> <span class="f">useForm</span>&lt;LoginRequest&gt;({
+    validationSchema: <span class="f">toTypedSchema</span>(schema),
+    initialValues: { email: <span class="s">''</span>, password: <span class="s">''</span> },
+  });
+}</pre>
+
+<pre class="ds-code-block"><span class="c">&lt;!-- components/LoginForm.vue --&gt;</span>
+&lt;script setup lang=<span class="s">"ts"</span>&gt;
+<span class="k">import</span> { useLoginForm } <span class="k">from</span> <span class="s">'@/composables/useLoginForm'</span>;
+<span class="k">const</span> { defineField, handleSubmit, errors, meta } = <span class="f">useLoginForm</span>();
+<span class="k">const</span> [email,    emailAttrs]    = <span class="f">defineField</span>(<span class="s">'email'</span>);
+<span class="k">const</span> [password, passwordAttrs] = <span class="f">defineField</span>(<span class="s">'password'</span>);
+
+<span class="k">const</span> onSubmit = <span class="f">handleSubmit</span>(<span class="k">async</span> (values) =&gt; {
+  <span class="k">await</span> auth.<span class="f">login</span>(values);  <span class="c">// see page 03 for the round-trip</span>
+});
+&lt;/script&gt;</pre>
+  </section>
+
+  <!-- Field states -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Field states</h2>
+      <span class="eyebrow">Visual reference</span>
+    </div>
+    <p>Four states cover every field. Pick a border colour, a tag, and a message tone. Keep the input geometry identical across states — the layout should not shift as errors appear.</p>
+
+    <div class="form-states" aria-label="Field state examples">
+      <div class="field">
+        <span class="field-state-tag">Pristine</span>
+        <label class="field-label">Email</label>
+        <input class="field-input" type="email" value="" placeholder="you@example.com" readonly>
+        <div class="field-msg">untouched · no validation yet</div>
+      </div>
+
+      <div class="field is-valid">
+        <span class="field-state-tag">Valid</span>
+        <label class="field-label">Email</label>
+        <input class="field-input" type="email" value="ada@example.com" readonly>
+        <div class="field-msg">looks good</div>
+      </div>
+
+      <div class="field is-invalid">
+        <span class="field-state-tag">Invalid</span>
+        <label class="field-label">Email</label>
+        <input class="field-input" type="email" value="ada@@example" readonly>
+        <div class="field-msg">enter a valid email</div>
+      </div>
+
+      <div class="field is-pending">
+        <span class="field-state-tag">Pending</span>
+        <label class="field-label">Email</label>
+        <input class="field-input" type="email" value="ada@example.com" readonly>
+        <div class="field-msg">checking availability…</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DTO link -->
+  <section class="card tight">
+    <div class="card-head">
+      <h2>DTOs as the schema base</h2>
+      <span class="eyebrow">Codegen recap</span>
+    </div>
+    <p>The Vue side imports types from <code class="ds-code">@/api/dto</code> — generated from <code class="ds-code">swagger.json</code> per <a href="01-architecture.html">page 01</a>. Use these types to constrain the Zod schema so a field renamed in C# breaks the build, not the runtime.</p>
+    <p class="small" style="margin-top: 12px;">Never hand-write DTO types. If a rule belongs in the contract (max length, enum), put it on the C# DTO with FluentValidation attributes; the codegen will surface it. If a rule is UI-only (visible password toggle state), keep it client-side.</p>
+  </section>
+
+  <!-- Book nav (bottom) -->
+  <nav class="booknav bottom" aria-label="Page navigation (bottom)">
+    <a class="toc-link" href="index.html">↑ contents</a>
+    <span class="nav-group">
+      <a href="01-architecture.html" rel="prev">← 01 · architecture</a>
+      <a href="03-api-validation.html" rel="next">03 · api validation →</a>
+    </span>
+  </nav>
+
+  <footer>
+    <span class="small">Page 02 of 03 · part of the <code class="ds-code">vue3-pwa-walkthrough</code> example for <code class="ds-code">agents-html-comms</code>.</span>
+  </footer>
+
+</main>
+</body>
+</html>

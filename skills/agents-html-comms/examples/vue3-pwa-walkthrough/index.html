@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vue 3 PWA walkthrough — table of contents</title>
+
+<script>
+(function () {
+  var KEY = 'ds.theme';
+  var html = document.documentElement;
+  function getStored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function setStored(v) { try { if (v == null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, v); } catch (e) {} }
+  function apply(mode) {
+    if (mode === 'light' || mode === 'dark') html.setAttribute('data-theme', mode);
+    else html.removeAttribute('data-theme');
+    html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: mode || 'auto', effective: effectiveTheme(mode) } }));
+  }
+  function effectiveTheme(mode) {
+    if (mode === 'light' || mode === 'dark') return mode;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var stored = getStored();
+  if (stored === 'light' || stored === 'dark') html.setAttribute('data-theme', stored);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange = function () {
+      if (!getStored()) html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: 'auto', effective: mq.matches ? 'dark' : 'light' } }));
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+  window.__theme = {
+    get: function () { return getStored() || 'auto'; },
+    set: function (mode) {
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') return;
+      setStored(mode === 'auto' ? null : mode);
+      apply(mode === 'auto' ? null : mode);
+    },
+    cycle: function () { var c = window.__theme.get(); var n = c === 'auto' ? 'light' : c === 'light' ? 'dark' : 'auto'; window.__theme.set(n); return n; },
+    effective: function () { return effectiveTheme(getStored()); },
+    subscribe: function (fn) { var h = function (e) { fn(e.detail); }; html.addEventListener('themechange', h); return function () { html.removeEventListener('themechange', h); }; },
+  };
+  function syncToggles() {
+    var mode = window.__theme.get();
+    var nodes = document.querySelectorAll('[data-theme-toggle]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].setAttribute('data-theme-current', mode);
+      var label = nodes[i].querySelector('[data-theme-label]');
+      if (label) label.textContent = mode;
+    }
+  }
+  window.__theme.subscribe(syncToggles);
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-theme-toggle]');
+    if (!btn) return;
+    var setNode = e.target.closest('[data-theme-set]');
+    if (setNode) window.__theme.set(setNode.getAttribute('data-theme-set'));
+    else window.__theme.cycle();
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncToggles);
+  else syncToggles();
+})();
+</script>
+
+<style>
+  :root {
+    color-scheme: light;
+    --ivory: #FAF9F5; --paper: #FFFFFF; --slate: #141413;
+    --clay: #D97757; --clay-d: #B85C3E; --oat: #E3DACC; --olive: #788C5D;
+    --g100: #F0EEE6; --g200: #E6E3DA; --g300: #D1CFC5;
+    --g500: #87867F; --g700: #3D3D3A;
+    --clay-tint: rgba(217,119,87,0.14); --olive-tint: rgba(120,140,93,0.16);
+    --shadow-rgb: 20,20,19;
+    --serif: ui-serif, Georgia, "Times New Roman", Times, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    --r-sm: 8px; --r-md: 12px; --r-lg: 14px;
+    --bd: 1.5px solid var(--g300);
+    --shadow-md: 0 4px 14px rgba(var(--shadow-rgb), 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+      --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+      --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+      --g500: #8F8B82; --g700: #C5BFB3;
+      --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+      --shadow-rgb: 0,0,0;
+    }
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+    --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+    --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+    --g500: #8F8B82; --g700: #C5BFB3;
+    --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+    --shadow-rgb: 0,0,0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ivory); color: var(--slate); font-family: var(--sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 56px 32px 96px; position: relative; }
+
+  /* Theme picker */
+  .theme-picker {
+    position: absolute; top: 28px; right: 32px;
+    display: inline-flex; align-items: stretch;
+    background: var(--paper); border: var(--bd);
+    border-radius: 999px; padding: 3px; box-shadow: var(--shadow-md);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em;
+    text-transform: uppercase; user-select: none;
+  }
+  .theme-picker [data-theme-set] {
+    appearance: none; background: transparent; border: 0;
+    color: var(--g500); padding: 6px 12px; border-radius: 999px;
+    cursor: pointer; font: inherit; letter-spacing: inherit;
+    text-transform: inherit; line-height: 1;
+  }
+  .theme-picker [data-theme-set]:hover { color: var(--slate); }
+  .theme-picker[data-theme-current="light"] [data-theme-set="light"],
+  .theme-picker[data-theme-current="auto"] [data-theme-set="auto"],
+  .theme-picker[data-theme-current="dark"] [data-theme-set="dark"] {
+    background: var(--clay-tint); color: var(--clay-d);
+  }
+  @media (max-width: 720px) {
+    .theme-picker { position: static; margin: 0 0 24px; }
+  }
+
+  /* Typography */
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--g500);
+    display: inline-flex; align-items: center; gap: 12px;
+  }
+  .eyebrow.with-dash::before { content: ""; width: 24px; height: 1.5px; background: var(--clay); }
+  h1 {
+    font-family: var(--serif); font-weight: 500;
+    font-size: clamp(36px, 5vw, 58px); line-height: 1.06;
+    letter-spacing: -0.018em; margin: 14px 0 12px; max-width: 22ch;
+  }
+  h1 em { font-style: italic; color: var(--clay); }
+  h2 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0 0 8px; letter-spacing: -0.008em; }
+  .lede { font-family: var(--sans); font-size: 17px; line-height: 1.55; color: var(--g700); max-width: 60ch; }
+  .small { font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--g700); }
+
+  /* TOC grid */
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    margin-top: 40px;
+  }
+  .toc-card {
+    background: var(--paper); border: var(--bd); border-radius: var(--r-lg);
+    padding: 28px 28px 24px; box-shadow: var(--shadow-md);
+    text-decoration: none; color: inherit;
+    display: flex; flex-direction: column; gap: 12px;
+    transition: transform 150ms cubic-bezier(0.22,1,0.36,1), box-shadow 150ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .toc-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(var(--shadow-rgb), 0.10);
+    border-color: var(--clay);
+  }
+  .toc-num {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em;
+    text-transform: uppercase; color: var(--clay-d);
+  }
+  .toc-title {
+    font-family: var(--serif); font-weight: 500; font-size: 22px;
+    line-height: 1.2; letter-spacing: -0.008em; color: var(--slate);
+  }
+  .toc-desc { font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--g700); }
+  .toc-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip {
+    font-family: var(--mono); font-size: 11px; color: var(--g700);
+    background: var(--g100); border: 1px solid var(--g200);
+    border-radius: 999px; padding: 3px 9px;
+  }
+
+  /* Reading order rail */
+  .rail {
+    margin-top: 56px; padding-top: 28px; border-top: var(--bd);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .rail h2 { margin-bottom: 4px; }
+  .rail-list {
+    display: flex; flex-direction: column; gap: 0;
+    counter-reset: rl;
+    border: var(--bd); border-radius: var(--r-md);
+    background: var(--paper); overflow: hidden;
+  }
+  .rail-list a {
+    counter-increment: rl;
+    display: grid; grid-template-columns: 56px 1fr auto;
+    align-items: center; gap: 16px;
+    padding: 16px 20px;
+    text-decoration: none; color: inherit;
+    border-top: 1px solid var(--g100);
+  }
+  .rail-list a:first-child { border-top: 0; }
+  .rail-list a:hover { background: var(--g100); }
+  .rail-list a::before {
+    content: counter(rl, decimal-leading-zero);
+    font-family: var(--mono); font-size: 12px;
+    color: var(--clay-d); letter-spacing: 0.08em;
+  }
+  .rail-title { font-family: var(--serif); font-size: 17px; }
+  .rail-arrow { font-family: var(--mono); color: var(--g500); font-size: 14px; }
+
+  footer { margin-top: 56px; border-top: var(--bd); padding-top: 20px; }
+  footer .small { color: var(--g500); }
+  footer a { color: var(--clay); text-decoration-color: var(--oat); text-underline-offset: 3px; }
+  code.ds-code { font-family: var(--mono); font-size: 13px; background: var(--g100); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <div class="theme-picker" role="group" aria-label="Theme" data-theme-toggle data-theme-current="auto">
+    <button type="button" data-theme-set="light">Light</button>
+    <button type="button" data-theme-set="auto">Auto</button>
+    <button type="button" data-theme-set="dark">Dark</button>
+  </div>
+
+  <header>
+    <span class="eyebrow with-dash">Walkthrough — table of contents</span>
+    <h1>Vue 3 PWA <em>talking to</em> a .NET Core API</h1>
+    <p class="lede">A three-part explainer. Read top to bottom for the full picture, or jump to the page you need. Each page is self-contained and links to its neighbours.</p>
+  </header>
+
+  <section class="toc-grid" aria-label="Pages">
+    <a class="toc-card" href="01-architecture.html">
+      <span class="toc-num">01 — Architecture</span>
+      <span class="toc-title">How the parts fit together</span>
+      <span class="toc-desc">System map: SPA shell, Service Worker, .NET Core backend, OpenAPI contract, build-time DTO codegen.</span>
+      <div class="toc-tags">
+        <span class="chip">Service Worker</span>
+        <span class="chip">Swashbuckle</span>
+        <span class="chip">openapi-ts</span>
+      </div>
+    </a>
+
+    <a class="toc-card" href="02-forms-validation.html">
+      <span class="toc-num">02 — Forms &amp; client validation</span>
+      <span class="toc-title">Catching mistakes in the browser</span>
+      <span class="toc-desc">Composition-API form architecture, schema-driven rules, error display patterns, and how generated DTOs shape the form state.</span>
+      <div class="toc-tags">
+        <span class="chip">Vee-validate</span>
+        <span class="chip">Zod</span>
+        <span class="chip">Pinia</span>
+      </div>
+    </a>
+
+    <a class="toc-card" href="03-api-validation.html">
+      <span class="toc-num">03 — API &amp; backend validation</span>
+      <span class="toc-title">Trusting only what the server says</span>
+      <span class="toc-desc">FluentValidation on .NET, ProblemDetails responses, and the round-trip that surfaces server errors back to specific form fields.</span>
+      <div class="toc-tags">
+        <span class="chip">FluentValidation</span>
+        <span class="chip">ProblemDetails</span>
+        <span class="chip">HTTP 400</span>
+      </div>
+    </a>
+  </section>
+
+  <section class="rail">
+    <h2>Reading order</h2>
+    <p class="small">Linear path through the walkthrough. Each page also has prev / next at top and bottom.</p>
+    <div class="rail-list">
+      <a href="01-architecture.html"><span class="rail-title">Architecture</span><span class="rail-arrow">→</span></a>
+      <a href="02-forms-validation.html"><span class="rail-title">Forms &amp; client validation</span><span class="rail-arrow">→</span></a>
+      <a href="03-api-validation.html"><span class="rail-title">API &amp; backend validation</span><span class="rail-arrow">→</span></a>
+    </div>
+  </section>
+
+  <footer>
+    <span class="small">Multi-file example of the <code class="ds-code">agents-html-comms</code> skill — demonstrates TOC + prev/next + back-link navigation per design <code class="ds-code">AGENTS.md</code>.</span>
+  </footer>
+
+</main>
+</body>
+</html>

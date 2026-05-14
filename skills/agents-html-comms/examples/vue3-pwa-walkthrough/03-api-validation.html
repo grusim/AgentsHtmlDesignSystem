@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 — API &amp; backend validation · Vue 3 PWA walkthrough</title>
+
+<script>
+(function () {
+  var KEY = 'ds.theme';
+  var html = document.documentElement;
+  function getStored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function setStored(v) { try { if (v == null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, v); } catch (e) {} }
+  function apply(mode) {
+    if (mode === 'light' || mode === 'dark') html.setAttribute('data-theme', mode);
+    else html.removeAttribute('data-theme');
+    html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: mode || 'auto', effective: effectiveTheme(mode) } }));
+  }
+  function effectiveTheme(mode) {
+    if (mode === 'light' || mode === 'dark') return mode;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  var stored = getStored();
+  if (stored === 'light' || stored === 'dark') html.setAttribute('data-theme', stored);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange = function () {
+      if (!getStored()) html.dispatchEvent(new CustomEvent('themechange', { detail: { mode: 'auto', effective: mq.matches ? 'dark' : 'light' } }));
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+  window.__theme = {
+    get: function () { return getStored() || 'auto'; },
+    set: function (mode) {
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'auto') return;
+      setStored(mode === 'auto' ? null : mode);
+      apply(mode === 'auto' ? null : mode);
+    },
+    cycle: function () { var c = window.__theme.get(); var n = c === 'auto' ? 'light' : c === 'light' ? 'dark' : 'auto'; window.__theme.set(n); return n; },
+    effective: function () { return effectiveTheme(getStored()); },
+    subscribe: function (fn) { var h = function (e) { fn(e.detail); }; html.addEventListener('themechange', h); return function () { html.removeEventListener('themechange', h); }; },
+  };
+  function syncToggles() {
+    var mode = window.__theme.get();
+    var nodes = document.querySelectorAll('[data-theme-toggle]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].setAttribute('data-theme-current', mode);
+      var label = nodes[i].querySelector('[data-theme-label]');
+      if (label) label.textContent = mode;
+    }
+  }
+  window.__theme.subscribe(syncToggles);
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-theme-toggle]');
+    if (!btn) return;
+    var setNode = e.target.closest('[data-theme-set]');
+    if (setNode) window.__theme.set(setNode.getAttribute('data-theme-set'));
+    else window.__theme.cycle();
+  });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncToggles);
+  else syncToggles();
+})();
+</script>
+
+<style>
+  :root {
+    color-scheme: light;
+    --ivory: #FAF9F5; --paper: #FFFFFF; --slate: #141413;
+    --clay: #D97757; --clay-d: #B85C3E; --oat: #E3DACC; --olive: #788C5D;
+    --g100: #F0EEE6; --g200: #E6E3DA; --g300: #D1CFC5;
+    --g500: #87867F; --g700: #3D3D3A;
+    --danger: #B04A4A; --warning: #C78E3F; --info: #5C7CA3;
+    --clay-tint: rgba(217,119,87,0.14); --olive-tint: rgba(120,140,93,0.16);
+    --danger-tint: rgba(176,74,74,0.14); --warning-tint: rgba(199,142,63,0.16);
+    --info-tint: rgba(92,124,163,0.14);
+    --shadow-rgb: 20,20,19;
+    --serif: ui-serif, Georgia, "Times New Roman", Times, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    --r-xs: 4px; --r-sm: 8px; --r-md: 12px; --r-lg: 14px;
+    --bd: 1.5px solid var(--g300);
+    --shadow-md: 0 4px 14px rgba(var(--shadow-rgb), 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+      --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+      --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+      --g500: #8F8B82; --g700: #C5BFB3;
+      --danger: #C9685F; --warning: #DBA458; --info: #7E9DC4;
+      --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+      --danger-tint: rgba(201,104,95,0.18); --warning-tint: rgba(219,164,88,0.18);
+      --info-tint: rgba(126,157,196,0.18);
+      --shadow-rgb: 0,0,0;
+    }
+  }
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --ivory: #1C1916; --paper: #26221E; --slate: #ECE5D8;
+    --clay: #E88B6F; --clay-d: #D97757; --oat: #3D342A; --olive: #9CB377;
+    --g100: #2A2520; --g200: #332E29; --g300: #4A4339;
+    --g500: #8F8B82; --g700: #C5BFB3;
+    --danger: #C9685F; --warning: #DBA458; --info: #7E9DC4;
+    --clay-tint: rgba(232,139,111,0.18); --olive-tint: rgba(156,179,119,0.18);
+    --danger-tint: rgba(201,104,95,0.18); --warning-tint: rgba(219,164,88,0.18);
+    --info-tint: rgba(126,157,196,0.18);
+    --shadow-rgb: 0,0,0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ivory); color: var(--slate); font-family: var(--sans); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 56px 32px 96px; position: relative; }
+
+  /* Theme picker */
+  .theme-picker { position: absolute; top: 28px; right: 32px; display: inline-flex; background: var(--paper); border: var(--bd); border-radius: 999px; padding: 3px; box-shadow: var(--shadow-md); font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; user-select: none; }
+  .theme-picker [data-theme-set] { appearance: none; background: transparent; border: 0; color: var(--g500); padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; line-height: 1; }
+  .theme-picker [data-theme-set]:hover { color: var(--slate); }
+  .theme-picker[data-theme-current="light"] [data-theme-set="light"],
+  .theme-picker[data-theme-current="auto"] [data-theme-set="auto"],
+  .theme-picker[data-theme-current="dark"] [data-theme-set="dark"] { background: var(--clay-tint); color: var(--clay-d); }
+  @media (max-width: 720px) { .theme-picker { position: static; margin: 0 0 24px; } }
+
+  /* Book nav */
+  .booknav {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 16px; padding: 16px 0; border-bottom: var(--bd); margin-bottom: 32px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .booknav.bottom { border-bottom: 0; border-top: var(--bd); margin: 56px 0 0; padding-bottom: 0; }
+  .booknav a { color: var(--g500); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .booknav a:hover { color: var(--clay-d); }
+  .booknav .toc-link { color: var(--clay-d); }
+  .booknav .nav-group { display: inline-flex; gap: 28px; }
+  .booknav .nav-empty { color: var(--g300); cursor: default; pointer-events: none; display: inline-flex; align-items: center; gap: 8px; padding: 4px 0; }
+
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--g500); display: inline-flex; align-items: center; gap: 12px; }
+  .eyebrow.with-dash::before { content: ""; width: 24px; height: 1.5px; background: var(--clay); }
+  h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 4.6vw, 52px); line-height: 1.06; letter-spacing: -0.018em; margin: 14px 0 12px; max-width: 22ch; }
+  h1 em { font-style: italic; color: var(--clay); }
+  h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; margin: 0 0 8px; letter-spacing: -0.008em; }
+  h3 { font-family: var(--serif); font-weight: 500; font-size: 18px; margin: 0 0 4px; letter-spacing: -0.006em; }
+  .lede { font-family: var(--sans); font-size: 17px; line-height: 1.55; color: var(--g700); max-width: 60ch; }
+  .small { font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--g700); }
+  p { font-family: var(--sans); font-size: 15px; line-height: 1.6; color: var(--g700); margin: 8px 0; }
+  code.ds-code { font-family: var(--mono); font-size: 13px; background: var(--g100); padding: 1px 5px; border-radius: var(--r-xs); }
+
+  .card { background: var(--paper); border: var(--bd); border-radius: var(--r-lg); padding: 32px 36px; box-shadow: var(--shadow-md); margin-top: 40px; }
+  .card.tight { padding: 26px 30px; }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+
+  /* Code block — Tokyo Night Storm, canonical pattern from agents-html-design
+     `colors_and_type.css` `.ds-code-block`. Palette is theme-independent. */
+  pre.ds-code-block {
+    --tns-bg:      #24283b;
+    --tns-fg:      #c0caf5;
+    --tns-comment: #7e9b4f;
+    --tns-red:     #f7768e;
+    --tns-orange:  #ff9e64;
+    --tns-yellow:  #e0af68;
+    --tns-green:   #9ece6a;
+    --tns-cyan:    #7dcfff;
+    --tns-blue:    #7aa2f7;
+    --tns-purple:  #bb9af7;
+
+    margin: 16px 0 0;
+    padding: 18px 20px;
+    background: var(--tns-bg);
+    color: var(--tns-fg);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    border-radius: var(--r-sm);
+    overflow-x: auto;
+  }
+  .ds-code-block .c { color: var(--tns-comment); font-style: italic; }
+  .ds-code-block .k { color: var(--tns-purple); }
+  .ds-code-block .n { color: var(--tns-orange); }
+  .ds-code-block .s { color: var(--tns-green); }
+  .ds-code-block .f { color: var(--tns-blue); }
+  .ds-code-block .o { color: var(--tns-cyan); }
+  .ds-code-block .p { color: var(--tns-red); }
+  .ds-code-block .y { color: var(--tns-yellow); }
+
+  /* Round-trip diagram */
+  .diagram-wrap { width: 100%; overflow-x: auto; margin-top: 16px; }
+  svg.roundtrip { width: 100%; height: auto; display: block; min-width: 720px; }
+  svg.roundtrip .node-label { font-family: var(--mono); font-size: 13px; fill: var(--slate); }
+  svg.roundtrip .node-sub { font-family: var(--mono); font-size: 11px; fill: var(--g500); }
+  svg.roundtrip .node-eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; fill: var(--g500); }
+  svg.roundtrip .edge-label { font-family: var(--serif); font-style: italic; font-size: 13px; fill: var(--g700); }
+  svg.roundtrip .edge-label.primary { fill: var(--clay-d); }
+  svg.roundtrip .edge-label.danger { fill: var(--danger); }
+
+  /* Two-column code grid */
+  .twocol { display: grid; grid-template-columns: 1fr; gap: 24px; margin-top: 16px; }
+  @media (min-width: 880px) { .twocol { grid-template-columns: 1fr 1fr; } }
+  .twocol h3 { margin-bottom: 6px; }
+  .twocol .col-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--g500); }
+
+  /* Anti-pattern callouts */
+  .antipatterns {
+    display: grid; gap: 14px; margin-top: 16px;
+    grid-template-columns: 1fr;
+  }
+  .antipattern {
+    display: grid; grid-template-columns: 28px 1fr; gap: 14px;
+    padding: 16px 18px;
+    border: var(--bd); border-radius: var(--r-md);
+    background: var(--danger-tint);
+    border-color: var(--danger);
+  }
+  .antipattern::before {
+    content: "×"; font-family: var(--mono); font-size: 18px; color: var(--danger);
+    line-height: 1; padding-top: 2px;
+  }
+  .antipattern h3 { color: var(--danger); margin-bottom: 4px; }
+  .antipattern p { margin: 0; }
+
+  /* Mock form with summary */
+  .form-mock {
+    border: var(--bd); border-radius: var(--r-md);
+    background: var(--ivory); padding: 22px; margin-top: 16px;
+    max-width: 480px;
+  }
+  .summary {
+    border: 1.5px solid var(--danger); background: var(--danger-tint);
+    border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 16px;
+  }
+  .summary h3 { color: var(--danger); margin: 0 0 6px; font-size: 15px; }
+  .summary ul { margin: 0; padding-left: 18px; color: var(--danger); font-family: var(--mono); font-size: 12px; line-height: 1.7; }
+  .field { margin-bottom: 14px; }
+  .field-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--g500); margin-bottom: 6px; display: block; }
+  .field-input { font-family: var(--mono); font-size: 14px; color: var(--slate); background: var(--paper); border: 1.5px solid var(--g300); border-radius: var(--r-sm); padding: 10px 12px; display: block; width: 100%; }
+  .field.is-invalid .field-input { border-color: var(--danger); }
+  .field-msg { font-family: var(--mono); font-size: 11px; margin-top: 6px; color: var(--g500); }
+  .field.is-invalid .field-msg { color: var(--danger); }
+  .submit-btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em;
+    text-transform: uppercase; color: var(--ivory); background: var(--slate);
+    border: 0; border-radius: 999px; padding: 10px 22px; cursor: default;
+  }
+
+  footer { margin-top: 56px; padding-top: 20px; }
+  footer a { color: var(--clay); text-decoration-color: var(--oat); text-underline-offset: 3px; }
+  footer .small { color: var(--g500); }
+</style>
+</head>
+
+<body>
+<main class="page">
+
+  <div class="theme-picker" role="group" aria-label="Theme" data-theme-toggle data-theme-current="auto">
+    <button type="button" data-theme-set="light">Light</button>
+    <button type="button" data-theme-set="auto">Auto</button>
+    <button type="button" data-theme-set="dark">Dark</button>
+  </div>
+
+  <nav class="booknav" aria-label="Page navigation (top)">
+    <a class="toc-link" href="index.html">↑ contents</a>
+    <span class="nav-group">
+      <a href="02-forms-validation.html" rel="prev">← 02 · forms &amp; client validation</a>
+      <span class="nav-empty">end of walkthrough →</span>
+    </span>
+  </nav>
+
+  <header>
+    <span class="eyebrow with-dash">03 / 03 — api &amp; backend validation</span>
+    <h1>Trusting only what the <em>server</em> says</h1>
+    <p class="lede">Client validation is a UX nicety. Server validation is the boundary that has to hold. Anything that can be tampered with in DevTools — every input, every header, every form payload — must be re-checked on the .NET side before it touches state.</p>
+  </header>
+
+  <!-- Why server validation -->
+  <section class="card">
+    <div class="card-head">
+      <h2>The server owns the contract</h2>
+      <span class="eyebrow">Security</span>
+    </div>
+    <p>The SPA, the Service Worker, and even the generated DTOs all run in territory you don't control. By the time a request hits a controller, every field has to be re-validated as if no client check ever ran. The contract — what's allowed in, what shape comes back — lives on the server.</p>
+    <p>Two practical commitments:</p>
+    <ul>
+      <li><strong>Validate in one place per request</strong>. Either FluentValidation pipelines or DataAnnotations + <code class="ds-code">ModelState</code>, never both layered silently.</li>
+      <li><strong>Surface failures as <code class="ds-code">ProblemDetails</code></strong> (RFC 7807). One JSON shape, machine-readable, with field-keyed <code class="ds-code">errors</code>.</li>
+    </ul>
+  </section>
+
+  <!-- Validator setup -->
+  <section class="card">
+    <div class="card-head">
+      <h2>FluentValidation on the .NET side</h2>
+      <span class="eyebrow">Server</span>
+    </div>
+    <p>One validator class per request DTO. Registered with DI; the model-binding pipeline invokes it automatically. On failure, ASP.NET returns a 400 with the standard <code class="ds-code">ValidationProblemDetails</code> body — no custom error contract.</p>
+
+<pre class="ds-code-block"><span class="c">// Validators/LoginRequestValidator.cs</span>
+<span class="k">public class</span> <span class="f">LoginRequestValidator</span> : AbstractValidator&lt;LoginRequest&gt;
+{
+    <span class="k">public</span> <span class="f">LoginRequestValidator</span>(IUserStore users)
+    {
+        <span class="f">RuleFor</span>(x =&gt; x.Email)
+            .<span class="f">NotEmpty</span>().<span class="f">EmailAddress</span>()
+            .<span class="f">MustAsync</span>(async (e, _) =&gt; await users.<span class="f">ExistsAsync</span>(e))
+            .<span class="f">WithMessage</span>(<span class="s">"unknown email"</span>);
+
+        <span class="f">RuleFor</span>(x =&gt; x.Password)
+            .<span class="f">NotEmpty</span>().<span class="f">MinimumLength</span>(<span class="n">8</span>);
+    }
+}
+
+<span class="c">// Program.cs</span>
+builder.Services.<span class="f">AddFluentValidationAutoValidation</span>();
+builder.Services.<span class="f">AddValidatorsFromAssemblyContaining</span>&lt;LoginRequestValidator&gt;();</pre>
+  </section>
+
+  <!-- ProblemDetails shape -->
+  <section class="card">
+    <div class="card-head">
+      <h2>The 400 response shape</h2>
+      <span class="eyebrow">Wire format</span>
+    </div>
+    <p>This is the contract every endpoint emits when validation fails. The <code class="ds-code">errors</code> object is keyed by request field name (matching the DTO property in PascalCase or the JSON name, depending on naming policy).</p>
+
+<pre class="ds-code-block">HTTP/1.1 <span class="n">400</span> Bad Request
+Content-Type: application/problem+json
+
+{
+  <span class="s">"type"</span>:   <span class="s">"https://tools.ietf.org/html/rfc7231#section-6.5.1"</span>,
+  <span class="s">"title"</span>:  <span class="s">"One or more validation errors occurred."</span>,
+  <span class="s">"status"</span>: <span class="n">400</span>,
+  <span class="s">"traceId"</span>: <span class="s">"00-9a3d…-01"</span>,
+  <span class="s">"errors"</span>: {
+    <span class="s">"email"</span>:    [<span class="s">"unknown email"</span>],
+    <span class="s">"password"</span>: [<span class="s">"'Password' must be at least 8 characters."</span>]
+  }
+}</pre>
+  </section>
+
+  <!-- Round-trip diagram -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Round-trip — submit to surfaced error</h2>
+      <span class="eyebrow">Sequence</span>
+    </div>
+    <p>What happens between the user clicking submit and the error appearing next to the right field. Each hop is labelled with what passes through it.</p>
+
+    <div class="diagram-wrap">
+    <svg class="roundtrip" viewBox="0 0 1000 360" role="img" aria-label="Validation round-trip">
+      <defs>
+        <marker id="arr-g3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10" fill="none" stroke="var(--g500)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+        <marker id="arr-clay3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10" fill="none" stroke="var(--clay-d)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+        <marker id="arr-danger" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10" fill="none" stroke="var(--danger)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <!-- SPA submit -->
+      <g>
+        <rect x="40" y="40" width="180" height="100" fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+        <text class="node-eyebrow" x="58" y="62">Browser</text>
+        <text class="node-label" x="58" y="88">submit handler</text>
+        <text class="node-sub"   x="58" y="108">POST /api/auth/login</text>
+        <text class="node-sub"   x="58" y="126">body = LoginRequest</text>
+      </g>
+
+      <!-- API controller -->
+      <g>
+        <rect x="280" y="40" width="200" height="100" fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+        <text class="node-eyebrow" x="298" y="62">.NET pipeline</text>
+        <text class="node-label" x="298" y="88">model binding</text>
+        <text class="node-sub"   x="298" y="108">deserialise to DTO</text>
+        <text class="node-sub"   x="298" y="126">FluentValidation runs</text>
+      </g>
+
+      <!-- Validator -->
+      <g>
+        <rect x="540" y="40" width="200" height="100" fill="var(--clay-tint)" stroke="var(--clay)" stroke-width="1.5" rx="8"/>
+        <text class="node-eyebrow" x="558" y="62" style="fill: var(--clay-d);">Validator</text>
+        <text class="node-label" x="558" y="88">LoginRequestValidator</text>
+        <text class="node-sub"   x="558" y="108">sync rules · async checks</text>
+        <text class="node-sub"   x="558" y="126">returns FailureCollection</text>
+      </g>
+
+      <!-- ProblemDetails -->
+      <g>
+        <rect x="800" y="40" width="160" height="100" fill="var(--danger-tint)" stroke="var(--danger)" stroke-width="1.5" rx="8"/>
+        <text class="node-eyebrow" x="818" y="62" style="fill: var(--danger);">400 response</text>
+        <text class="node-label" x="818" y="88">ProblemDetails</text>
+        <text class="node-sub"   x="818" y="108">errors: { field: [...] }</text>
+        <text class="node-sub"   x="818" y="126">traceId · title</text>
+      </g>
+
+      <!-- Bottom row: SPA error handling -->
+      <g>
+        <rect x="40" y="220" width="220" height="100" fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+        <text class="node-eyebrow" x="58" y="242">Browser</text>
+        <text class="node-label" x="58" y="268">api client interceptor</text>
+        <text class="node-sub"   x="58" y="288">catches non-2xx</text>
+        <text class="node-sub"   x="58" y="306">parses problem+json</text>
+      </g>
+
+      <g>
+        <rect x="320" y="220" width="220" height="100" fill="var(--paper)" stroke="var(--g300)" stroke-width="1.5" rx="8"/>
+        <text class="node-eyebrow" x="338" y="242">vee-validate</text>
+        <text class="node-label" x="338" y="268">setErrors({ ... })</text>
+        <text class="node-sub"   x="338" y="288">key map: server → form</text>
+        <text class="node-sub"   x="338" y="306">errors object replaced</text>
+      </g>
+
+      <g>
+        <rect x="600" y="220" width="220" height="100" fill="var(--olive-tint)" stroke="var(--olive)" stroke-width="1.5" rx="8"/>
+        <text class="node-eyebrow" x="618" y="242" style="fill: var(--olive);">UI</text>
+        <text class="node-label" x="618" y="268">&lt;Field /&gt; re-renders</text>
+        <text class="node-sub"   x="618" y="288">focus jumps to first error</text>
+        <text class="node-sub"   x="618" y="306">summary + inline message</text>
+      </g>
+
+      <!-- Top edges -->
+      <line x1="220" y1="90" x2="280" y2="90" stroke="var(--clay-d)" stroke-width="2.5" marker-end="url(#arr-clay3)"/>
+      <text class="edge-label primary" x="250" y="82" text-anchor="middle">HTTPS</text>
+
+      <line x1="480" y1="90" x2="540" y2="90" stroke="var(--g500)" stroke-width="2.5" marker-end="url(#arr-g3)"/>
+      <text class="edge-label" x="510" y="82" text-anchor="middle">invokes</text>
+
+      <line x1="740" y1="90" x2="800" y2="90" stroke="var(--danger)" stroke-width="2.5" marker-end="url(#arr-danger)"/>
+      <text class="edge-label danger" x="770" y="82" text-anchor="middle">fails → 400</text>
+
+      <!-- Vertical: 400 → interceptor -->
+      <path d="M 880,140 C 880,180 150,180 150,220" fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-dasharray="6 6" marker-end="url(#arr-danger)"/>
+      <text class="edge-label danger" x="520" y="178" text-anchor="middle">application/problem+json</text>
+
+      <!-- Bottom edges -->
+      <line x1="260" y1="270" x2="320" y2="270" stroke="var(--g500)" stroke-width="2.5" marker-end="url(#arr-g3)"/>
+      <text class="edge-label" x="290" y="262" text-anchor="middle">map</text>
+
+      <line x1="540" y1="270" x2="600" y2="270" stroke="var(--olive)" stroke-width="2.5" marker-end="url(#arr-g3)"/>
+      <text class="edge-label" x="570" y="262" text-anchor="middle">render</text>
+
+      <text class="node-eyebrow" x="40" y="200">Error path back to the user</text>
+    </svg>
+    </div>
+  </section>
+
+  <!-- Client-side mapping -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Mapping server errors to form fields</h2>
+      <span class="eyebrow">Client</span>
+    </div>
+    <p>One interceptor in the fetch wrapper. Catches 400 responses, parses <code class="ds-code">problem+json</code>, and surfaces the errors object to whichever form is awaiting the request. Field names must align — see anti-patterns below.</p>
+
+    <div class="twocol">
+      <div>
+        <span class="col-eyebrow">Fetch interceptor</span>
+        <h3>api/client.ts</h3>
+<pre class="ds-code-block"><span class="k">export async function</span> <span class="f">apiFetch</span>&lt;T&gt;(
+  url: string,
+  init?: RequestInit,
+): Promise&lt;T&gt; {
+  <span class="k">const</span> res = <span class="k">await</span> <span class="f">fetch</span>(url, init);
+  <span class="k">if</span> (res.ok) <span class="k">return</span> res.<span class="f">json</span>();
+
+  <span class="k">if</span> (res.status === <span class="n">400</span> &&
+      res.headers.<span class="f">get</span>(<span class="s">'content-type'</span>)
+         ?.<span class="f">includes</span>(<span class="s">'problem+json'</span>)) {
+    <span class="k">const</span> body = <span class="k">await</span> res.<span class="f">json</span>() <span class="k">as</span> ProblemDetails;
+    <span class="k">throw new</span> <span class="f">ValidationError</span>(body.errors ?? {});
+  }
+  <span class="k">throw new</span> <span class="f">ApiError</span>(res.status);
+}</pre>
+      </div>
+
+      <div>
+        <span class="col-eyebrow">Form composable</span>
+        <h3>useLoginForm.ts (extended)</h3>
+<pre class="ds-code-block"><span class="k">const</span> { setErrors, handleSubmit } = <span class="f">useForm</span>(...);
+
+<span class="k">const</span> onSubmit = <span class="f">handleSubmit</span>(<span class="k">async</span> (values) =&gt; {
+  <span class="k">try</span> {
+    <span class="k">await</span> auth.<span class="f">login</span>(values);
+  } <span class="k">catch</span> (e) {
+    <span class="k">if</span> (e <span class="k">instanceof</span> ValidationError) {
+      <span class="f">setErrors</span>(
+        <span class="f">mapServerErrors</span>(e.errors),  <span class="c">// key map</span>
+      );
+      <span class="k">return</span>;
+    }
+    <span class="k">throw</span> e;  <span class="c">// not ours → bubble up</span>
+  }
+});</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mock form with server errors -->
+  <section class="card">
+    <div class="card-head">
+      <h2>What the user sees</h2>
+      <span class="eyebrow">UI reference</span>
+    </div>
+    <p>Two surfaces in one form: a summary block at the top (for accessibility and skim) plus inline messages next to each field. Both come from the same <code class="ds-code">errors</code> object.</p>
+
+    <div class="form-mock" aria-label="Form after server validation failure">
+      <div class="summary" role="alert">
+        <h3>2 problems to fix</h3>
+        <ul>
+          <li>email — unknown email</li>
+          <li>password — must be at least 8 characters</li>
+        </ul>
+      </div>
+      <div class="field is-invalid">
+        <label class="field-label">Email</label>
+        <input class="field-input" type="email" value="ada@unknown.example" readonly>
+        <div class="field-msg">unknown email</div>
+      </div>
+      <div class="field is-invalid">
+        <label class="field-label">Password</label>
+        <input class="field-input" type="password" value="••••" readonly>
+        <div class="field-msg">must be at least 8 characters</div>
+      </div>
+      <button class="submit-btn" type="button" disabled>Sign in</button>
+    </div>
+  </section>
+
+  <!-- Anti-patterns -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Anti-patterns</h2>
+      <span class="eyebrow">Avoid</span>
+    </div>
+    <div class="antipatterns">
+      <div class="antipattern">
+        <div>
+          <h3>Silently duplicating server rules in client schema</h3>
+          <p>Two implementations of "email must end in @company.com" drift apart. Pick one source — the C# attribute or FluentValidation rule — and surface it via codegen or a doc. See <a href="02-forms-validation.html">page 02 § DTOs</a>.</p>
+        </div>
+      </div>
+      <div class="antipattern">
+        <div>
+          <h3>Trusting client validation as a security check</h3>
+          <p>"The form prevents this" is not an argument. DevTools can change anything. Every input must be re-validated server-side before it influences state.</p>
+        </div>
+      </div>
+      <div class="antipattern">
+        <div>
+          <h3>Custom error envelopes per endpoint</h3>
+          <p>One endpoint returns <code class="ds-code">{ errors: [...] }</code>, another returns <code class="ds-code">{ failures: {...} }</code>, a third returns plain text. The client interceptor balloons. Use <code class="ds-code">ProblemDetails</code> everywhere.</p>
+        </div>
+      </div>
+      <div class="antipattern">
+        <div>
+          <h3>Returning 200 with errors in the body</h3>
+          <p>HTTP status codes mean things. A validation failure is 400. A 200 with an <code class="ds-code">errors</code> array breaks caches, Service Worker logic, observability, and every standard client library.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Closing -->
+  <section class="card tight">
+    <div class="card-head">
+      <h2>The full loop</h2>
+      <span class="eyebrow">Recap</span>
+    </div>
+    <p><a href="01-architecture.html">Architecture</a> showed the SPA / SW / API / codegen layout. <a href="02-forms-validation.html">Forms &amp; client validation</a> kept obvious mistakes inside the browser. This page closes the loop: the server validates everything, returns a standard error shape, and the SPA places each error next to the field that caused it. Generated DTOs keep both sides honest about field names.</p>
+  </section>
+
+  <nav class="booknav bottom" aria-label="Page navigation (bottom)">
+    <a class="toc-link" href="index.html">↑ contents</a>
+    <span class="nav-group">
+      <a href="02-forms-validation.html" rel="prev">← 02 · forms &amp; client validation</a>
+      <span class="nav-empty">end of walkthrough →</span>
+    </span>
+  </nav>
+
+  <footer>
+    <span class="small">Page 03 of 03 · part of the <code class="ds-code">vue3-pwa-walkthrough</code> example for <code class="ds-code">agents-html-comms</code>.</span>
+  </footer>
+
+</main>
+</body>
+</html>
